@@ -18,12 +18,13 @@ function probe(file){return new Promise(function(res,rej){
 function openPublish(){
   closeMenu();
   if(!PROF){openProfileEdit(openPublish);return}
-  var sh=$("#sheet"),info=null,file=null,cthumb=null,vis="public";
+  var sh=$("#sheet"),info=null,file=null,cthumb=null,vis="public",subs="";
   sh.innerHTML='<div class="in"><div class="hdr"><button class="icon-btn" id="cl" aria-label="Voltar">'+ICON.back+'</button><h2>Publicar v\u00eddeo</h2></div>'+
    '<form class="sec" id="pf"><label class="pick" for="f">'+ICON.up+'<b style="color:var(--fg)">Escolher v\u00eddeo</b><span>Da galeria ou dos arquivos do aparelho</span><input id="f" type="file" accept="video/*"></label>'+
    '<div class="pv" id="pv" hidden><img id="pi" alt=""><div class="minw"><div id="pk"><b></b></div><div class="sub" id="pd"></div></div></div><p class="err" id="er" hidden></p>'+
    '<div class="field" id="thf" hidden><span class="lb">Miniatura</span><div class="thbtns"><label class="btn ghost" for="tf" style="cursor:pointer;position:relative">Escolher imagem<input id="tf" type="file" accept="image/*" style="position:absolute;width:1px;height:1px;opacity:0"></label><button type="button" class="btn ghost" id="trs" hidden>Usar quadro do v\u00eddeo</button></div><p class="help">Sem escolher, usamos um quadro do v\u00eddeo.</p></div>'+
    '<div class="field"><label for="tt">T\u00edtulo</label><input id="tt" maxlength="100" placeholder="D\u00ea um t\u00edtulo ao v\u00eddeo"></div>'+
+   '<div class="field"><span class="lb">Legenda (opcional)</span><div class="thbtns"><label class="btn ghost" for="sf2" style="cursor:pointer;position:relative">Escolher .srt ou .vtt<input id="sf2" type="file" accept=".srt,.vtt,text/vtt" style="position:absolute;width:1px;height:1px;opacity:0"></label><button type="button" class="btn ghost" id="srm" hidden>Remover</button></div><p class="help" id="sfn">Sem legenda.</p></div>'+
    '<div class="field"><span class="lb">Visibilidade</span><div class="seg" id="vis"><button type="button" data-v="public" aria-pressed="true"><b>P\u00fablico</b><span>Aparece em V\u00eddeos e Shorts</span></button><button type="button" data-v="private" aria-pressed="false"><b>Privado</b><span>S\u00f3 voc\u00ea v\u00ea, no seu perfil</span></button></div></div>'+
    '<p class="sub">O v\u00eddeo fica salvo neste aparelho e neste navegador. Outras pessoas ainda n\u00e3o conseguem ver.</p>'+
    '<button class="btn block" id="go" type="submit" disabled>Publicar</button></form></div>';
@@ -44,6 +45,9 @@ function openPublish(){
       $("#pv",sh).hidden=true;er.textContent="N\u00e3o consegui abrir esse v\u00eddeo neste navegador. Tente um arquivo MP4.";er.hidden=false;
     });
   };
+  $("#sf2",sh).onchange=function(){var f=this.files&&this.files[0];this.value="";if(!f)return;
+    readSubs(f).then(function(t){subs=t;$("#sfn",sh).textContent="Legenda: "+f.name;$("#srm",sh).hidden=false}).catch(function(){toast("Arquivo de legenda inv\u00e1lido. Use .srt ou .vtt")})};
+  $("#srm",sh).onclick=function(){subs="";$("#sfn",sh).textContent="Sem legenda.";this.hidden=true};
   $("#vis",sh).onclick=function(e){var b=e.target.closest("button");if(!b)return;vis=b.dataset.v;
     this.querySelectorAll("button").forEach(function(x){x.setAttribute("aria-pressed",x===b)})};
   $("#tf",sh).onchange=function(){var f=this.files&&this.files[0];this.value="";if(!f||!info)return;
@@ -55,7 +59,7 @@ function openPublish(){
     if(!info||!file||!DB){if(!DB){er.textContent="Este navegador n\u00e3o permite salvar v\u00eddeos.";er.hidden=false}return}
     var title=$("#tt",sh).value.trim()||"Sem t\u00edtulo",ch=pName();
     goBtn.disabled=true;goBtn.textContent="Salvando\u2026";
-    var rec={id:Date.now(),title:title,ch:ch,kind:info.vertical?"short":"video",dur:info.dur,thumb:cthumb||info.thumb,blob:file,created:Date.now(),views:0,likes:0,vis:vis};
+    var rec={id:Date.now(),title:title,ch:ch,kind:info.vertical?"short":"video",dur:info.dur,thumb:cthumb||info.thumb,blob:file,created:Date.now(),views:0,likes:0,vis:vis,subs:subs};
     dbPut(rec).then(function(){
       LIB.unshift(rec);closeSheet();drawGrid();go(rec.kind==="short"?"shorts":"videos");toast("V\u00eddeo publicado");
     }).catch(function(){

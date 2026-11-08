@@ -41,6 +41,12 @@ function dbAll(){return new Promise(function(res,rej){var q=DB.transaction("vide
 function dbPut(v){return new Promise(function(res,rej){var t=DB.transaction("videos","readwrite");t.objectStore("videos").put(v);t.oncomplete=res;t.onerror=function(){rej(t.error)};t.onabort=function(){rej(t.error)}})}
 function dbDel(id){return new Promise(function(res,rej){var t=DB.transaction("videos","readwrite");t.objectStore("videos").delete(id);t.oncomplete=res;t.onerror=function(){rej(t.error)}})}
 function urlOf(v){if(!URLS[v.id])URLS[v.id]=URL.createObjectURL(v.blob);return URLS[v.id]}
+function readSubs(file){return file.arrayBuffer().then(function(buf){
+  var t;try{t=new TextDecoder("utf-8",{fatal:true}).decode(buf)}catch(e){t=new TextDecoder("windows-1252").decode(buf)}
+  t=t.replace(/^\uFEFF/,"").replace(/\r/g,"");
+  if(!/^WEBVTT/.test(t))t="WEBVTT\n\n"+t.replace(/(\d+:\d+:\d+),(\d+)/g,"$1.$2");
+  if(!/-->/.test(t))throw new Error("sem tempo");
+  return t})}
 function pubOnly(l){return l.filter(function(v){return v.vis!=="private"})}
 function kind(k){return LIB.filter(function(v){return v.kind===k}).sort(function(a,b){return b.created-a.created})}
 
@@ -140,6 +146,7 @@ function openVideo(id){
    '<button class="close" id="cl" aria-label="Fechar">'+ICON.x+'</button></div>'+
    '<div class="sec"><h2>'+esc(v.title)+'</h2><div class="sub">'+fmt(v.views)+' views \u00b7 '+ago(v.created)+'</div>'+
    '<div class="row2">'+avH()+'<div class="grow"><b>'+esc(pName())+'</b><div class="sub">'+esc(pHandle())+'</div></div></div>'+
+   '<div class="row2" id="vt"><button class="btn ghost" id="sp">Velocidade 1x</button><button class="btn ghost" id="sb">Adicionar legenda</button><button class="btn ghost" id="sr" hidden>Remover legenda</button><button class="btn ghost" id="pp" hidden>Mini-player</button><input id="sf" type="file" accept=".srt,.vtt,text/vtt" hidden></div>'+
    '<div class="row2"><button class="btn ghost" id="lk">'+ICON.heart.replace('<svg','<svg width="18" height="18"')+'<span id="lkn">'+fmt((v.likes||0)+(on?1:0))+'</span></button>'+
    '<button class="btn ghost" id="vz"></button><button class="btn danger" id="dl">Excluir v\u00eddeo</button></div>'+
    '<b>Coment\u00e1rios</b><div id="cms"></div>'+
@@ -149,6 +156,22 @@ function openVideo(id){
   cdraw();
   $("#cl",sh).onclick=function(){closeSheet();drawGrid()};
   $("#lk",sh).onclick=function(){st.liked["v"+v.id]=!st.liked["v"+v.id];lsSet("vx-liked",st.liked);$("#lkn",sh).textContent=fmt((v.likes||0)+(st.liked["v"+v.id]?1:0))};
+  var vd=$("video",sh),rates=[1,1.25,1.5,2,0.5,0.75],ri=0,tu=null;
+  function applySubs(){
+    vd.querySelectorAll("track").forEach(function(t){t.remove()});
+    if(tu){URL.revokeObjectURL(tu);tu=null}
+    if(v.subs){tu=URL.createObjectURL(new Blob([v.subs],{type:"text/vtt"}));
+      var tr=document.createElement("track");tr.kind="subtitles";tr.srclang="pt";tr.label="Portugu\u00eas";tr.src=tu;tr.default=true;vd.appendChild(tr);
+      setTimeout(function(){if(vd.textTracks[0])vd.textTracks[0].mode="showing"},200)}
+    $("#sb",sh).textContent=v.subs?"Trocar legenda":"Adicionar legenda";$("#sr",sh).hidden=!v.subs;
+  }
+  applySubs();
+  $("#sp",sh).onclick=function(){ri=(ri+1)%rates.length;vd.playbackRate=rates[ri];this.textContent="Velocidade "+rates[ri]+"x"};
+  $("#sb",sh).onclick=function(){$("#sf",sh).click()};
+  $("#sf",sh).onchange=function(){var f=this.files&&this.files[0];this.value="";if(!f)return;
+    readSubs(f).then(function(t){v.subs=t;dbPut(v).catch(function(){});applySubs();toast("Legenda adicionada")}).catch(function(){toast("Arquivo de legenda inv\u00e1lido. Use .srt ou .vtt")})};
+  $("#sr",sh).onclick=function(){v.subs="";dbPut(v).catch(function(){});applySubs();toast("Legenda removida")};
+  if(document.pictureInPictureEnabled){var pp=$("#pp",sh);pp.hidden=false;pp.onclick=function(){(document.pictureInPictureElement?document.exitPictureInPicture():vd.requestPictureInPicture()).catch(function(){toast("Mini-player indispon\u00edvel")})}}
   function vzLabel(){$("#vz",sh).textContent=v.vis==="private"?"Privado: tornar p\u00fablico":"P\u00fablico: tornar privado"}
   vzLabel();
   $("#vz",sh).onclick=function(){v.vis=v.vis==="private"?"public":"private";vzLabel();dbPut(v).catch(function(){});drawGrid();if(st.tab==="shorts")drawShorts();toast(v.vis==="private"?"V\u00eddeo agora \u00e9 privado":"V\u00eddeo agora \u00e9 p\u00fablico")};
