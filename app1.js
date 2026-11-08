@@ -41,6 +41,7 @@ function dbAll(){return new Promise(function(res,rej){var q=DB.transaction("vide
 function dbPut(v){return new Promise(function(res,rej){var t=DB.transaction("videos","readwrite");t.objectStore("videos").put(v);t.oncomplete=res;t.onerror=function(){rej(t.error)};t.onabort=function(){rej(t.error)}})}
 function dbDel(id){return new Promise(function(res,rej){var t=DB.transaction("videos","readwrite");t.objectStore("videos").delete(id);t.oncomplete=res;t.onerror=function(){rej(t.error)}})}
 function urlOf(v){if(!URLS[v.id])URLS[v.id]=URL.createObjectURL(v.blob);return URLS[v.id]}
+function pubOnly(l){return l.filter(function(v){return v.vis!=="private"})}
 function kind(k){return LIB.filter(function(v){return v.kind===k}).sort(function(a,b){return b.created-a.created})}
 
 /* v\u00eddeos */
@@ -49,7 +50,7 @@ function emptyBlock(icon,title,text,btn){
 }
 function drawGrid(){
   var q=st.q.toLowerCase();
-  var list=kind("video").filter(function(v){return !q||(v.title+" "+pName()+" "+pHandle()).toLowerCase().indexOf(q)>-1});
+  var list=pubOnly(kind("video")).filter(function(v){return !q||(v.title+" "+pName()+" "+pHandle()).toLowerCase().indexOf(q)>-1});
   if(!list.length){
     $("#grid").innerHTML=st.q?'<div class="empty" style="grid-column:1/-1"><p>Nenhum v\u00eddeo encontrado.</p></div>':
       '<div style="grid-column:1/-1">'+emptyBlock(ICON.film,"Nenhum v\u00eddeo ainda","Publique o primeiro v\u00eddeo do seu canal. Ele aparece aqui.","Publicar v\u00eddeo")+'</div>';
@@ -65,7 +66,7 @@ function drawGrid(){
 var io=null;
 function pauseAll(){document.querySelectorAll("#shortsbox video").forEach(function(v){try{v.pause()}catch(e){}})}
 function drawShorts(){
-  var box=$("#shortsbox"),list=kind("short");
+  var box=$("#shortsbox"),list=pubOnly(kind("short"));
   if(io){io.disconnect();io=null}
   if(!list.length){box.innerHTML=emptyBlock(ICON.rect,"Nenhum short ainda","V\u00eddeos gravados em p\u00e9 aparecem aqui, em tela cheia.","Publicar v\u00eddeo");return}
   box.innerHTML='<div class="shorts" id="shorts">'+list.map(function(s){
@@ -140,7 +141,7 @@ function openVideo(id){
    '<div class="sec"><h2>'+esc(v.title)+'</h2><div class="sub">'+fmt(v.views)+' views \u00b7 '+ago(v.created)+'</div>'+
    '<div class="row2">'+avH()+'<div class="grow"><b>'+esc(pName())+'</b><div class="sub">'+esc(pHandle())+'</div></div></div>'+
    '<div class="row2"><button class="btn ghost" id="lk">'+ICON.heart.replace('<svg','<svg width="18" height="18"')+'<span id="lkn">'+fmt((v.likes||0)+(on?1:0))+'</span></button>'+
-   '<button class="btn danger" id="dl">Excluir v\u00eddeo</button></div>'+
+   '<button class="btn ghost" id="vz"></button><button class="btn danger" id="dl">Excluir v\u00eddeo</button></div>'+
    '<b>Coment\u00e1rios</b><div id="cms"></div>'+
    '<form class="cin" id="cf"><input id="ci" placeholder="Adicionar coment\u00e1rio" aria-label="Coment\u00e1rio" maxlength="200"><button class="btn" type="submit">Enviar</button></form></div></div>';
   sh.hidden=false;sh.scrollTop=0;document.body.style.overflow="hidden";
@@ -148,6 +149,9 @@ function openVideo(id){
   cdraw();
   $("#cl",sh).onclick=function(){closeSheet();drawGrid()};
   $("#lk",sh).onclick=function(){st.liked["v"+v.id]=!st.liked["v"+v.id];lsSet("vx-liked",st.liked);$("#lkn",sh).textContent=fmt((v.likes||0)+(st.liked["v"+v.id]?1:0))};
+  function vzLabel(){$("#vz",sh).textContent=v.vis==="private"?"Privado: tornar p\u00fablico":"P\u00fablico: tornar privado"}
+  vzLabel();
+  $("#vz",sh).onclick=function(){v.vis=v.vis==="private"?"public":"private";vzLabel();dbPut(v).catch(function(){});drawGrid();if(st.tab==="shorts")drawShorts();toast(v.vis==="private"?"V\u00eddeo agora \u00e9 privado":"V\u00eddeo agora \u00e9 p\u00fablico")};
   $("#dl",sh).onclick=function(){askDelete(v.id)};
   $("#cf",sh).onsubmit=function(e){e.preventDefault();var i=$("#ci",sh),t=i.value.trim();if(!t)return;cms.unshift({n:pName(),t:t});i.value="";cdraw()};
 }
