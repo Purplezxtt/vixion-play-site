@@ -26,7 +26,7 @@ function openPublish(){
    '<div class="field"><label for="tt">T\u00edtulo</label><input id="tt" maxlength="100" placeholder="D\u00ea um t\u00edtulo ao v\u00eddeo"></div>'+
    '<div class="field"><span class="lb">Legenda (opcional)</span><div class="thbtns"><label class="btn ghost" for="sf2" style="cursor:pointer;position:relative">Escolher .srt ou .vtt<input id="sf2" type="file" accept=".srt,.vtt,text/vtt" style="position:absolute;width:1px;height:1px;opacity:0"></label><button type="button" class="btn ghost" id="srm" hidden>Remover</button></div><p class="help" id="sfn">Sem legenda.</p></div>'+
    '<div class="field"><span class="lb">Visibilidade</span><div class="seg" id="vis"><button type="button" data-v="public" aria-pressed="true"><b>P\u00fablico</b><span>Aparece em V\u00eddeos e Shorts</span></button><button type="button" data-v="private" aria-pressed="false"><b>Privado</b><span>S\u00f3 voc\u00ea v\u00ea, no seu perfil</span></button></div></div>'+
-   '<p class="sub">O v\u00eddeo fica salvo neste aparelho e neste navegador. Outras pessoas ainda n\u00e3o conseguem ver.</p>'+
+   '<p class="sub">O v\u00eddeo fica salvo neste aparelho e neste navegador. N\u00e3o limpe os dados do navegador e guarde o arquivo original. Outras pessoas ainda n\u00e3o conseguem ver.</p>'+
    '<button class="btn block" id="go" type="submit" disabled>Publicar</button></form></div>';
   sh.hidden=false;sh.scrollTop=0;document.body.style.overflow="hidden";
   $("#cl",sh).onclick=closeSheet;

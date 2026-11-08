@@ -146,7 +146,7 @@ function openVideo(id){
    '<button class="close" id="cl" aria-label="Fechar">'+ICON.x+'</button></div>'+
    '<div class="sec"><h2>'+esc(v.title)+'</h2><div class="sub">'+fmt(v.views)+' views \u00b7 '+ago(v.created)+'</div>'+
    '<div class="row2">'+avH()+'<div class="grow"><b>'+esc(pName())+'</b><div class="sub">'+esc(pHandle())+'</div></div></div>'+
-   '<div class="row2" id="vt"><button class="btn ghost" id="sp">Velocidade 1x</button><button class="btn ghost" id="sb">Adicionar legenda</button><button class="btn ghost" id="sr" hidden>Remover legenda</button><button class="btn ghost" id="pp" hidden>Mini-player</button><input id="sf" type="file" accept=".srt,.vtt,text/vtt" hidden></div>'+
+   '<div class="row2" id="vt"><button class="btn ghost" id="sp">Velocidade 1x</button><button class="btn ghost" id="sb">Adicionar legenda</button><button class="btn ghost" id="sr" hidden>Remover legenda</button><button class="btn ghost" id="dw">Baixar v\u00eddeo</button><button class="btn ghost" id="ga">Legenda autom\u00e1tica</button><button class="btn ghost" id="pp" hidden>Mini-player</button><input id="sf" type="file" accept=".srt,.vtt,text/vtt" hidden></div><p class="sub" id="gs" hidden></p>'+
    '<div class="row2"><button class="btn ghost" id="lk">'+ICON.heart.replace('<svg','<svg width="18" height="18"')+'<span id="lkn">'+fmt((v.likes||0)+(on?1:0))+'</span></button>'+
    '<button class="btn ghost" id="vz"></button><button class="btn danger" id="dl">Excluir v\u00eddeo</button></div>'+
    '<b>Coment\u00e1rios</b><div id="cms"></div>'+
@@ -171,6 +171,22 @@ function openVideo(id){
   $("#sf",sh).onchange=function(){var f=this.files&&this.files[0];this.value="";if(!f)return;
     readSubs(f).then(function(t){v.subs=t;dbPut(v).catch(function(){});applySubs();toast("Legenda adicionada")}).catch(function(){toast("Arquivo de legenda inv\u00e1lido. Use .srt ou .vtt")})};
   $("#sr",sh).onclick=function(){v.subs="";dbPut(v).catch(function(){});applySubs();toast("Legenda removida")};
+  $("#dw",sh).onclick=function(){var t=v.blob.type||"",ext=t.indexOf("webm")>-1?"webm":t.indexOf("quicktime")>-1?"mov":"mp4";
+    var a=document.createElement("a");a.href=urlOf(v);a.download=(v.title||"video").replace(/[\\\/:*?"<>|]/g,"_")+"."+ext;document.body.appendChild(a);a.click();a.remove();toast("Baixando o v\u00eddeo\u2026")};
+  var stopAuto=null;
+  $("#ga",sh).onclick=function(){
+    if(stopAuto){stopAuto();return}
+    var btn=this,gs=$("#gs",sh),c={stop:false};
+    btn.textContent="Cancelar";gs.hidden=false;gs.textContent="Come\u00e7ando\u2026";
+    stopAuto=function(){c.stop=true;gs.textContent="Cancelando\u2026"};
+    function say(m){if(!btn.isConnected){c.stop=true;return}gs.textContent=m}
+    autoSubs(v,c,say).then(function(vtt){
+      if(!btn.isConnected)return;
+      if(vtt){v.subs=vtt;dbPut(v).catch(function(){});applySubs();gs.textContent="Legenda criada. Confira se o texto est\u00e1 certo.";toast("Legenda criada")}
+      else gs.textContent="Cancelado."
+    }).catch(function(e){if(btn.isConnected)gs.textContent=e&&e.message||"Deu erro. Tente de novo."})
+    .then(function(){stopAuto=null;if(btn.isConnected)btn.textContent="Legenda autom\u00e1tica"});
+  };
   if(document.pictureInPictureEnabled){var pp=$("#pp",sh);pp.hidden=false;pp.onclick=function(){(document.pictureInPictureElement?document.exitPictureInPicture():vd.requestPictureInPicture()).catch(function(){toast("Mini-player indispon\u00edvel")})}}
   function vzLabel(){$("#vz",sh).textContent=v.vis==="private"?"Privado: tornar p\u00fablico":"P\u00fablico: tornar privado"}
   vzLabel();
