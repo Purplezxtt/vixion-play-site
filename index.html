@@ -136,6 +136,7 @@ svg{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-lin
 .player{position:relative;aspect-ratio:16/9;background:#000;max-width:100%;overflow:hidden}
 .player.tall{aspect-ratio:auto;height:70svh}
 .player video{width:100%;height:100%;object-fit:contain;display:block;background:#000}
+.player iframe{width:100%;height:100%;border:0;display:block;background:#000}
 .close{position:absolute;left:10px;top:10px;z-index:2;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;display:grid;place-items:center}
 .close svg{width:18px;height:18px}
 .sec{padding:0 max(16px,env(safe-area-inset-left,0px)) 0 max(16px,env(safe-area-inset-right,0px))}
@@ -260,7 +261,7 @@ function dur(s){s=Math.round(s||0);var h=Math.floor(s/3600),m=Math.floor(s%3600/
 function ago(t){var m=Math.floor((Date.now()-new Date(t).getTime())/60000);if(m<1)return "agora";if(m<60)return "há "+m+" min";var h=Math.floor(m/60);if(h<24)return "há "+h+" h";var d=Math.floor(h/24);if(d<30)return "há "+d+(d===1?" dia":" dias");var mo=Math.floor(d/30);if(mo<12)return "há "+mo+(mo===1?" mês":" meses");var y=Math.floor(mo/12);return "há "+y+(y===1?" ano":" anos")}
 function init(n){return String(n||"V").replace("@","").trim().charAt(0).toUpperCase()||"V"}
 function toast(m){var t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(function(){t.hidden=true},2400)}
-function pub(path){return path?sb.storage.from("media").getPublicUrl(path).data.publicUrl:""}
+function pub(path){if(path&&path.indexOf("yt:")===0)return "https://i.ytimg.com/vi/"+path.slice(3)+"/hqdefault.jpg";return path?sb.storage.from("media").getPublicUrl(path).data.publicUrl:""}
 function pavatar(p){return p&&p.avatar?pub(p.avatar):""}
 function avHTML(p,cls){
   p=p||{};
@@ -374,7 +375,7 @@ function drawTab(t){
 function videoCard(v,opts){
   opts=opts||{};var p=v.profiles||{};
   return '<article class="vid"><a class="thumb" href="#v/'+v.id+'" aria-label="'+esc(v.title)+'"><img alt="" loading="lazy" src="'+esc(pub(v.thumb_path))+'">'+
-    (opts.tag&&v.kind==="short"?'<span class="tag">Short</span>':'')+'<span class="dur">'+dur(v.duration)+'</span></a>'+
+    (opts.tag&&v.kind==="short"?'<span class="tag">Short</span>':'')+(v.duration>0?'<span class="dur">'+dur(v.duration)+'</span>':'')+'</a>'+
     '<div class="meta">'+(opts.noav?'':'<a href="#c/'+esc(p.handle)+'" aria-label="Canal '+esc(p.name)+'">'+avHTML(p)+'</a>')+
     '<div class="minw"><a class="vt" href="#v/'+v.id+'">'+esc(v.title)+'</a><div class="sub">'+
     (opts.noav?'':'<a href="#c/'+esc(p.handle)+'">'+esc(p.name)+'</a> · ')+fmt(v.views)+' views · '+ago(v.created_at)+'</div></div></div></article>';
@@ -504,10 +505,10 @@ function confirmDel(key,btn,label,fn){
   if(!label)toast("Toque de novo para excluir");
 }
 function deleteVideo(v){
-  var paths=[v.video_path];if(v.thumb_path)paths.push(v.thumb_path);
+  var paths=[v.video_path];if(v.thumb_path)paths.push(v.thumb_path);paths=paths.filter(function(x){return x&&x.indexOf("yt:")!==0});
   sb.from("videos").delete().eq("id",v.id).then(function(r){
     if(r.error){toast("Não consegui excluir.");return}
-    sb.storage.from("media").remove(paths);
+    if(paths.length)sb.storage.from("media").remove(paths);
     C.videos=null;C.shorts=null;LOADED.videos=0;LOADED.shorts=0;
     toast("Vídeo excluído");
     location.hash=st.tab;
@@ -556,7 +557,9 @@ function openVideo(id,silent){
 function drawVideoSheet(){
   var v=VIEWED,sh=$("#sheet"),p=v.profiles||{},on=!!MYLIKES[v.id],mine=ME&&v.owner===ME.id,isSub=!!MYSUBS[v.owner];
   var short=v.kind==="short";
-  sh.innerHTML='<div class="in"><div class="player'+(short?' tall':'')+'"><video controls playsinline autoplay poster="'+esc(pub(v.thumb_path))+'" src="'+esc(pub(v.video_path))+'"></video>'+
+  var isYt=(v.video_path||"").indexOf("yt:")===0;
+  var playerEl=isYt?'<iframe src="https://www.youtube-nocookie.com/embed/'+esc(v.video_path.slice(3))+'?autoplay=1&rel=0&playsinline=1" title="'+esc(v.title)+'" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>':'<video controls playsinline autoplay poster="'+esc(pub(v.thumb_path))+'" src="'+esc(pub(v.video_path))+'"></video>';
+  sh.innerHTML='<div class="in"><div class="player'+(short?' tall':'')+'">'+playerEl+
    '<button class="close" data-close aria-label="Fechar">'+ICON.x+'</button></div>'+
    '<div class="sec"><h2 class="vtitle">'+esc(v.title)+'</h2><div class="sub">'+fmt(v.views)+' views · '+ago(v.created_at)+'</div>'+
    '<div class="row2"><a href="#c/'+esc(p.handle)+'">'+avHTML(p)+'</a><div class="grow"><a href="#c/'+esc(p.handle)+'"><b>'+esc(p.name)+'</b></a><div class="sub">@'+esc(p.handle)+'</div></div>'+
@@ -788,11 +791,13 @@ function probe(file){return new Promise(function(res,rej){
 function openPublish(){
   if(!ME){PENDING_PUB=true;openAuth("Entre para publicar vídeos.");return}
   if(!PROF){PENDING_PUB=true;openProfileEdit(true);return}
-  var m=$("#modal"),info=null,file=null,kind="video",busy=false;
+  var m=$("#modal"),info=null,file=null,kind="video",busy=false,mode="file",ytId=null,ytTok=0,ytTimer=null;
   m.innerHTML='<div class="in"><div class="hdr"><button class="icon-btn" data-mclose aria-label="Voltar">'+ICON.back+'</button><h2>Publicar vídeo</h2></div>'+
-   '<form class="sec" id="pf"><label class="pick" for="f">'+ICON.up+'<b style="color:var(--fg)">Escolher vídeo</b><span>Da galeria ou dos arquivos. Até '+MAXMB+' MB.</span><input id="f" type="file" accept="video/*"></label>'+
+   '<form class="sec" id="pf"><div class="field" style="margin-top:0"><span class="lb">Como publicar</span><div class="seg" id="mg"><button type="button" data-m="file" aria-pressed="true">Enviar arquivo</button><button type="button" data-m="yt" aria-pressed="false">Link do YouTube</button></div></div>'+
+   '<div class="field" id="ytb" hidden><label for="yl">Link do YouTube</label><input class="txt" id="yl" inputmode="url" placeholder="Cole o link do vídeo" autocomplete="off" autocapitalize="off"><p class="help">Suba o vídeo no YouTube como “Não listado”, deixe a incorporação ligada e cole o link aqui.</p></div>'+
+   '<label class="pick" for="f">'+ICON.up+'<b style="color:var(--fg)">Escolher vídeo</b><span>Da galeria ou dos arquivos. Até '+MAXMB+' MB.</span><input id="f" type="file" accept="video/*"></label>'+
    '<div class="pv" id="pv" hidden><img id="pi" alt=""><div class="minw"><div id="pk"><b></b></div><div class="sub" id="pd"></div></div></div><p class="err" id="er" hidden></p>'+
-   '<div class="field"><span class="lb">Onde aparece</span><div class="seg" id="kg"><button type="button" data-k="video" aria-pressed="true">Vídeos</button><button type="button" data-k="short" aria-pressed="false">Shorts</button></div><p class="help">Vídeos em pé costumam ir para Shorts.</p></div>'+
+   '<div class="field" id="kf"><span class="lb">Onde aparece</span><div class="seg" id="kg"><button type="button" data-k="video" aria-pressed="true">Vídeos</button><button type="button" data-k="short" aria-pressed="false">Shorts</button></div><p class="help">Vídeos em pé costumam ir para Shorts.</p></div>'+
    '<div class="field"><label for="tt">Título</label><input class="txt" id="tt" maxlength="100" placeholder="Dê um título ao vídeo" autocomplete="off"></div>'+
    '<div class="field"><label for="ds">Descrição (opcional)</label><textarea class="txt" id="ds" maxlength="500" placeholder="Conte do que se trata"></textarea></div>'+
    '<p class="help">Todo vídeo publicado fica público e qualquer pessoa pode assistir.</p>'+
@@ -802,6 +807,46 @@ function openPublish(){
   var er=$("#er",m),go=$("#go",m);
   function setKind(k){kind=k;m.querySelectorAll("#kg button").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.k===k)})}
   $("#kg",m).onclick=function(e){var b=e.target.closest("button");if(b)setKind(b.dataset.k)};
+  function setMode(x){
+    mode=x;m.querySelectorAll("#mg button").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.m===x)});
+    $(".pick",m).hidden=x==="yt";$("#ytb",m).hidden=x!=="yt";$("#kf",m).hidden=x==="yt";
+    er.hidden=true;
+    if(x==="yt"){kind="video";$("#pv",m).hidden=!ytId;$("#pv",m).classList.remove("v");go.disabled=!ytId}
+    else{$("#pv",m).hidden=!info;$("#pv",m).classList.toggle("v",!!(info&&info.vertical));go.disabled=!(info&&file)}
+  }
+  $("#mg",m).onclick=function(e){var b=e.target.closest("button");if(b)setMode(b.dataset.m)};
+  function ytParse(t){
+    t=(t||"").trim();
+    var r=t.match(/(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\?(?:[^#]*&)?v=|embed\/|shorts\/|live\/|v\/))([A-Za-z0-9_-]{11})/);
+    if(r)return r[1];
+    return /^[A-Za-z0-9_-]{11}$/.test(t)?t:null;
+  }
+  $("#yl",m).oninput=function(){
+    var val=this.value;clearTimeout(ytTimer);ytId=null;go.disabled=true;er.hidden=true;$("#pv",m).hidden=true;
+    var id=ytParse(val),tok=++ytTok;
+    if(!val.trim())return;
+    if(!id){ytTimer=setTimeout(function(){if(tok!==ytTok)return;er.textContent="Não reconheci esse link do YouTube.";er.hidden=false},500);return}
+    $("#pv",m).hidden=false;$("#pv",m).classList.remove("v");
+    $("#pi",m).src="https://i.ytimg.com/vi/"+id+"/hqdefault.jpg";
+    $("#pk",m).innerHTML="<b>Verificando…</b>";$("#pd",m).textContent="YouTube";
+    function ok(title,note){
+      if(tok!==ytTok)return;ytId=id;
+      $("#pk",m).innerHTML="<b>"+(note||"Pronto para publicar")+"</b>";
+      if(title&&!$("#tt",m).value.trim())$("#tt",m).value=title.slice(0,100);
+      go.disabled=false;
+    }
+    fetch("https://www.youtube.com/oembed?format=json&url="+encodeURIComponent("https://www.youtube.com/watch?v="+id))
+      .then(function(r){if(!r.ok){var e=new Error("http");e.status=r.status;throw e}return r.json()})
+      .then(function(j){ok(j&&j.title)})
+      .catch(function(x){
+        if(tok!==ytTok)return;
+        if(x&&x.status){
+          $("#pv",m).hidden=true;
+          er.textContent=x.status===404?"Não achei esse vídeo no YouTube.":"Esse vídeo é privado ou não permite incorporação. Use “Não listado” e deixe a incorporação ligada.";
+          er.hidden=false;
+        }else ok("","Não consegui verificar, mas vou tentar");
+      });
+  };
   $("#f",m).onchange=function(){
     file=this.files&&this.files[0];if(!file)return;
     er.hidden=true;go.disabled=true;info=null;
@@ -819,7 +864,23 @@ function openPublish(){
     });
   };
   $("#pf",m).onsubmit=function(e){
-    e.preventDefault();if(busy||!info||!file)return;
+    e.preventDefault();
+    if(mode==="yt"){
+      if(busy||!ytId)return;
+      var yt=$("#tt",m).value.trim();if(!yt){er.textContent="Escreva um título.";er.hidden=false;return}
+      busy=true;go.disabled=true;go.textContent="Publicando…";er.hidden=true;
+      sb.from("videos").insert({owner:ME.id,title:yt,description:$("#ds",m).value.trim(),kind:"video",duration:0,video_path:"yt:"+ytId,thumb_path:"yt:"+ytId}).then(function(r){
+        if(r.error)throw r.error;
+        C.videos=null;C.shorts=null;LOADED.videos=0;LOADED.shorts=0;
+        closeModal();toast("Vídeo publicado");
+        if(location.hash==="#videos"||!location.hash)route();else location.hash="videos";
+      }).catch(function(x){
+        busy=false;go.disabled=false;go.textContent="Publicar";
+        er.textContent=errMsg(x,"Não consegui publicar. Tente de novo.");er.hidden=false;
+      });
+      return;
+    }
+    if(busy||!info||!file)return;
     var title=$("#tt",m).value.trim();if(!title){er.textContent="Escreva um título.";er.hidden=false;return}
     busy=true;go.disabled=true;go.textContent="Publicando…";er.hidden=true;$("#up",m).hidden=false;
     var id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():"xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,function(c){var r=Math.random()*16|0;return(c==="x"?r:(r&3|8)).toString(16)});
